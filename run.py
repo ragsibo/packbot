@@ -26,8 +26,6 @@ def keep_alive():
 # --- YOUR EXISTING CODE STARTS HERE ---
 # Just call keep_alive() right before bot.run()
 
-keep_alive()
-bot.run("YOUR_TOKEN_HERE")
 
 # --- CONFIGURATION ---
 load_dotenv()
@@ -390,4 +388,5 @@ async def quote(interaction: discord.Interaction, target: discord.User, message:
         await interaction.followup.send(f"Failed to quote: {e}", ephemeral=True)
 
 if __name__ == "__main__":
+    keep_alive()
     bot.run(TOKEN)
