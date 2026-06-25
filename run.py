@@ -10,22 +10,19 @@ from dotenv import load_dotenv
 from flask import Flask
 from threading import Thread
 
+# --- KEEP ALIVE SERVER ---
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "Bot is alive!"
+    return "PackBot is alive and watching."
 
 def run():
-  app.run(host='0.0.0.0', port=8080)
+    app.run(host='0.0.0.0', port=8080)
 
 def keep_alive():
     t = Thread(target=run)
     t.start()
-
-# --- YOUR EXISTING CODE STARTS HERE ---
-# Just call keep_alive() right before bot.run()
-
 
 # --- CONFIGURATION ---
 load_dotenv()
@@ -36,7 +33,7 @@ try:
 except:
     MY_ID = 0
 
-# --- CLASSIC SDK INITIALIZATION ---
+# --- GEMINI AI INITIALIZATION ---
 genai.configure(api_key=API_KEY)
 
 SAFETY_SETTINGS = [
@@ -134,6 +131,7 @@ class PackBot(commands.Bot):
     async def on_message(self, message):
         if message.author.bot: return
 
+        # HIJACK LOGIC
         if message.author.id in self.hijack_targets:
             custom_text = self.hijack_targets[message.author.id]
             replacement = custom_text if custom_text else random.choice(HIJACK_PHRASES)
@@ -148,6 +146,7 @@ class PackBot(commands.Bot):
             except: pass
             return 
 
+        # REPLY / GLAZE LOGIC
         if message.reference and message.reference.message_id:
             try:
                 replied_to = message.reference.resolved
@@ -180,7 +179,6 @@ bot = PackBot()
 
 @bot.tree.command(name="rr", description="Russian Roulette. You will eventually die.")
 async def rr(interaction: discord.Interaction):
-    # TRUE CHAMBER LOGIC: Guaranteed 1 death every 6 shots.
     if not bot.rr_chamber:
         bot.rr_chamber = [True] + [False] * 5
         random.shuffle(bot.rr_chamber)
@@ -189,7 +187,6 @@ async def rr(interaction: discord.Interaction):
     
     if bullet_fired:
         await interaction.response.defer()
-        # Changed the prompt to avoid trigger words while keeping the menace
         prompt = (
             f"Write a 2-line roast for {interaction.user.display_name} because they just lost a game of Russian Roulette. "
             "Be absolutely ruthless, call them a failure, and make it clear they've been 'packed up' by the game. "
@@ -231,7 +228,6 @@ async def lawyer(interaction: discord.Interaction, target: discord.User, claim: 
 
     text = await bot.generate_raw(prompt, context=context_str)
     
-    # Discord Embed Failsafe (4096 Character Limit)
     if len(text) > 3900:
         text = text[:3900] + "...\n\n**[CLOSING ARGUMENTS CUT SHORT DUE TO CONTEMPT OF COURT]**"
     
@@ -258,16 +254,13 @@ async def pack(interaction: discord.Interaction, target: discord.User, intensity
         
     await interaction.response.defer()
     
-    # Generate the roast
     text = await bot.generate_raw(f"PACK/ROAST THIS USER: {target.display_name}. INTENSITY: {intensity}/10.")
     
-    # Enforce strict 1900 character limit to allow for the target mention
     if len(text) > 1900:
         text = text[:1900] + "\n\n*(TL;DR: You're cooked.)*"
     
     bot.user_pack_history[target.id] = text
     
-    # Use a try/except to prevent the 404/400 errors from crashing the bot
     try:
         await interaction.followup.send(f"{target.mention} {text}")
     except discord.errors.HTTPException as e:
@@ -289,12 +282,19 @@ async def lobotomy(interaction: discord.Interaction, target: discord.User):
     text = await bot.generate_raw(f"WRITE AN 8-STANZA ABSOLUTE BRAINROT POEM ABOUT {target.display_name}. ALL CAPS. PROFANE.")
     await interaction.followup.send(f"**LOBOTOMIZING {target.name.upper()}:**\n\n{text.upper()}"[:2000])
 
-@bot.tree.command(name="gaslight", description="Fabricate an embarrassing fake memory/exposé.")
-async def gaslight(interaction: discord.Interaction, target: discord.User):
+@bot.tree.command(name="audit", description="Perform a cold, ruthless psychological teardown of a user.")
+async def audit(interaction: discord.Interaction, target: discord.User):
     await interaction.response.defer()
-    prompt = f"Make up a highly detailed, incredibly embarrassing, and fake 'leaked Discord DM' or 'search history' for {target.display_name}. Make it sound somewhat believable but entirely humiliating. Use quotes."
-    text = await bot.generate_raw(prompt, context="FABRICATING EVIDENCE")
-    await interaction.followup.send(f"🚨 **EXPOSING {target.mention}** 🚨\n\n{text}")
+    
+    prompt = (
+        f"Perform a brutal, highly analytical psychological audit on the user '{target.display_name}'. "
+        "Dismantle their ego, highlight their obvious insecurities, and explain exactly why their vibe screams 'failure.' "
+        "Sound like a cold, clinical, and absolutely ruthless psychiatrist diagnosing them as a walking L. "
+        "Make it hurt their feelings intellectually."
+    )
+    
+    text = await bot.generate_raw(prompt, context="CLINICAL TEARDOWN")
+    await interaction.followup.send(f"📋 **PSYCHOLOGICAL AUDIT FILED FOR {target.mention}:** 📋\n\n{text}")
 
 @bot.tree.command(name="crashout", description="Drop a 3-message unhinged rant on someone.")
 async def crashout(interaction: discord.Interaction, target: discord.User):
@@ -334,7 +334,7 @@ async def flashbang(interaction: discord.Interaction, status: str, gif_url: str 
             while True:
                 try:
                     await interaction.channel.send(gif_url)
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(1.0)
                 except: break
         bot.active_tasks[f"gif_{cid}"] = asyncio.create_task(gif_worker())
     else:
@@ -350,13 +350,22 @@ async def haunt(interaction: discord.Interaction, target: discord.User, status: 
     if status.lower() == "on":
         bot.haunt_targets.add(target.id)
         await interaction.response.send_message(f"Haunting {target.name} in their DMs...")
+        
         async def haunt_worker():
-            dm = await target.create_dm()
+            try:
+                dm = await target.create_dm()
+            except discord.Forbidden:
+                bot.haunt_targets.discard(target.id)
+                return
+                
             while target.id in bot.haunt_targets:
                 try: 
                     await dm.send(random.choice(INSULTS))
-                    await asyncio.sleep(1.0)
-                except: break
+                    await asyncio.sleep(2.0)
+                except (discord.Forbidden, discord.HTTPException):
+                    bot.haunt_targets.discard(target.id)
+                    break
+                    
         asyncio.create_task(haunt_worker())
     else:
         bot.haunt_targets.discard(target.id)
@@ -367,7 +376,6 @@ async def quote(interaction: discord.Interaction, target: discord.User, message:
     await interaction.response.defer(ephemeral=True)
     
     try:
-        # Fetch or create the webhook
         wh = bot.webhook_cache.get(interaction.channel_id)
         if not wh:
             webhooks = await interaction.channel.webhooks()
@@ -376,7 +384,6 @@ async def quote(interaction: discord.Interaction, target: discord.User, message:
                 wh = await interaction.channel.create_webhook(name="Packbot_Quote")
             bot.webhook_cache[interaction.channel_id] = wh
         
-        # Send the impersonated message
         await wh.send(
             content=message, 
             username=target.display_name, 
