@@ -81,7 +81,6 @@ DEATH_LINES = [
 class PackBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.all()
-        # Set prefix to "+p " and remove default help to make our own
         super().__init__(command_prefix="+p ", intents=intents, help_command=None)
         self.user_pack_history = {} 
         self.haunt_targets = set()
@@ -94,7 +93,7 @@ class PackBot(commands.Bot):
         
         # Load persistent data
         self.db = load_data()
-        self.downtime = False # Global AI downtime flag
+        self.downtime = False
 
     def get_balance(self, user_id):
         uid = str(user_id)
@@ -110,9 +109,8 @@ class PackBot(commands.Bot):
         save_data(self.db)
 
     def is_ai_allowed(self, user_id):
-        """Checks if a user is allowed to use AI commands based on downtime and blacklist."""
         if user_id == MY_ID:
-            return True # Owner bypasses everything
+            return True
         if self.downtime:
             return False
         if user_id in self.db["blacklist"]:
@@ -182,9 +180,8 @@ class PackBot(commands.Bot):
     async def on_message(self, message):
         if message.author.bot: return
 
-        # Custom Prefix Help Handler
         if message.content.strip().lower() == "+p help":
-            await self.process_commands(message) # Let the command handle it
+            await self.process_commands(message)
             return
 
         # HIJACK LOGIC
@@ -202,7 +199,7 @@ class PackBot(commands.Bot):
             except: pass
             return 
 
-        # REPLY / GLAZE LOGIC (Subject to Downtime/Blacklist)
+        # REPLY / GLAZE LOGIC
         if message.reference and message.reference.message_id:
             try:
                 replied_to = message.reference.resolved
@@ -211,7 +208,7 @@ class PackBot(commands.Bot):
 
                 if replied_to and replied_to.author.id == self.user.id:
                     if not self.is_ai_allowed(message.author.id):
-                        return # Silently ignore replies if blacklisted/downtime active
+                        return
 
                     async with message.channel.typing():
                         if message.author.id == MY_ID:
@@ -325,39 +322,67 @@ class BlackjackView(discord.ui.View):
             await self.end_game(interaction, "Push (Tie). Bet returned.", 1)
 
 
-# --- TEXT COMMANDS (PREFIX) ---
+# --- TEXT COMMANDS (PREFIX ACCESS) ---
+
+def build_help_embed(user_id):
+    embed = discord.Embed(title="PackBot Command Arsenal", color=0x2b2d31, description="Prefix: `+p ` | Full integration via Slash `/` commands")
+    embed.add_field(name="💼 Economy & Casino", value="`/daily` - Claim daily dududollars (DDR)\n`/balance` - Check your wallet\n`/coinflip <bet> <side>` - 50/50 double or nothing\n`/blackjack <bet>` - Play interactive blackjack\n`/rr` - Russian Roulette", inline=False)
+    embed.add_field(name="🔥 AI Warfare", value="`/pack <user> <intensity>` - Surgical AI roast\n`/glaze <user>` - Overwhelming praise\n`/lobotomy <user>` - Brainrot poetry\n`/lawyer <user> <claim> <stance>` - Courtroom defense/attack\n`/crashout <user>` - 3-part unhinged rant\n`/ask <question>` - Sassy AI response", inline=False)
+    embed.add_field(name="⚙️ Utility Tools", value="`/quote` & `/hijack` - Webhook impersonation\n`/haunt` & `/flashbang` - Channel/DM spam tools", inline=False)
+    if user_id == MY_ID:
+        embed.add_field(name="👑 Owner Controls", value="`/downtime` - Toggle AI capabilities globally\n`/blacklist <user>` - Revoke/restore AI access for a user", inline=False)
+    return embed
 
 @bot.command(name="help")
-async def help_cmd(ctx):
-    embed = discord.Embed(title="PackBot Command Arsenal", color=0x2b2d31, description="Prefix: `+p ` | Most interactive commands use `/`")
-    
-    embed.add_field(name="💼 Economy & Casino (Slash Commands)", value="`/daily` - Claim daily dududollars (DDR)\n`/balance` - Check your wallet\n`/coinflip <bet> <side>` - 50/50 double or nothing\n`/blackjack <bet>` - Play classic blackjack against the bot\n`/rr` - Russian Roulette (No cost)", inline=False)
-    embed.add_field(name="🔥 AI Warfare (Slash Commands)", value="`/pack <user> <intensity>` - Surgical AI roast\n`/glaze <user>` - Overwhelming praise\n`/lobotomy <user>` - Brainrot poetry\n`/lawyer <user> <claim> <stance>` - Courtroom defense/attack\n`/crashout <user>` - 3-part unhinged rant\n`/ask <question>` - Sassy AI response", inline=False)
-    embed.add_field(name="⚙️ Admin/Utility", value="`/quote` & `/hijack` - Webhook impersonation\n`/haunt` & `/flashbang` - Channel/DM spam tools", inline=False)
-    
-    if ctx.author.id == MY_ID:
-        embed.add_field(name="👑 Owner Only (Prefix Commands)", value="`+p downtime` - Toggles AI capabilities globally\n`+p blacklist <user_id>` - Revokes AI access for a user", inline=False)
-        
-    await ctx.send(embed=embed)
+async def help_prefix(ctx):
+    await ctx.send(embed=build_help_embed(ctx.author.id))
 
 @bot.command(name="downtime")
-async def downtime_cmd(ctx):
+async def downtime_prefix(ctx):
     if ctx.author.id != MY_ID: return
     bot.downtime = not bot.downtime
     status = "ON (AI disabled)" if bot.downtime else "OFF (AI enabled)"
     await ctx.send(f"⚠️ **Global AI Downtime is now {status}**")
 
 @bot.command(name="blacklist")
-async def blacklist_cmd(ctx, target_id: int):
+async def blacklist_prefix(ctx, target: discord.User):
     if ctx.author.id != MY_ID: return
-    if target_id in bot.db["blacklist"]:
-        bot.db["blacklist"].remove(target_id)
+    if target.id in bot.db["blacklist"]:
+        bot.db["blacklist"].remove(target.id)
         save_data(bot.db)
-        await ctx.send(f"✅ User ID `{target_id}` removed from blacklist.")
+        await ctx.send(f"✅ User {target.mention} removed from blacklist.")
     else:
-        bot.db["blacklist"].append(target_id)
+        bot.db["blacklist"].append(target.id)
         save_data(bot.db)
-        await ctx.send(f"🚫 User ID `{target_id}` added to AI blacklist.")
+        await ctx.send(f"🚫 User {target.mention} added to AI blacklist.")
+
+
+# --- GLOBAL SLASH COMMAND VERSIONS ---
+
+@bot.tree.command(name="help", description="Show the usage of all PackBot commands.")
+async def help_slash(interaction: discord.Interaction):
+    await interaction.response.send_message(embed=build_help_embed(interaction.user.id))
+
+@bot.tree.command(name="downtime", description="Toggle AI capabilities globally (Owner Only).")
+async def downtime_slash(interaction: discord.Interaction):
+    if interaction.user.id != MY_ID:
+        return await interaction.response.send_message("Unauthorized. Owner only.", ephemeral=True)
+    bot.downtime = not bot.downtime
+    status = "ON (AI disabled)" if bot.downtime else "OFF (AI enabled)"
+    await interaction.response.send_message(f"⚠️ **Global AI Downtime is now {status}**")
+
+@bot.tree.command(name="blacklist", description="Revoke or restore AI access for a user (Owner Only).")
+async def blacklist_slash(interaction: discord.Interaction, target: discord.User):
+    if interaction.user.id != MY_ID:
+        return await interaction.response.send_message("Unauthorized. Owner only.", ephemeral=True)
+    if target.id in bot.db["blacklist"]:
+        bot.db["blacklist"].remove(target.id)
+        save_data(bot.db)
+        await interaction.response.send_message(f"✅ User {target.mention} removed from blacklist.")
+    else:
+        bot.db["blacklist"].append(target.id)
+        save_data(bot.db)
+        await interaction.response.send_message(f"🚫 User {target.mention} added to AI blacklist.")
 
 
 # --- ECONOMY & CASINO (SLASH COMMANDS) ---
@@ -371,7 +396,7 @@ async def daily(interaction: discord.Interaction):
     last_claim = bot.db["economy"][uid]["last_daily"]
     now = time.time()
     
-    if now - last_claim >= 86400: # 24 hours
+    if now - last_claim >= 86400:
         bot.db["economy"][uid]["balance"] += 100
         bot.db["economy"][uid]["last_daily"] = now
         save_data(bot.db)
@@ -395,7 +420,7 @@ async def coinflip(interaction: discord.Interaction, bet: int, choice: app_comma
     bal = bot.get_balance(interaction.user.id)
     if bet > bal: return await interaction.response.send_message(f"You're broke. You only have **{bal} DDR**.", ephemeral=True)
     
-    bot.update_balance(interaction.user.id, -bet) # Deduct bet
+    bot.update_balance(interaction.user.id, -bet)
     
     outcome = random.choice(["heads", "tails"])
     if choice.value == outcome:
@@ -411,11 +436,9 @@ async def blackjack(interaction: discord.Interaction, bet: int):
     bal = bot.get_balance(interaction.user.id)
     if bet > bal: return await interaction.response.send_message(f"You're broke. You only have **{bal} DDR**.", ephemeral=True)
     
-    bot.update_balance(interaction.user.id, -bet) # Deduct bet to start
-    
+    bot.update_balance(interaction.user.id, -bet)
     view = BlackjackView(interaction.user, bet)
     
-    # Check for immediate natural blackjack
     p_score = view.calc_score(view.player_hand)
     d_score = view.calc_score(view.dealer_hand)
     
@@ -423,7 +446,7 @@ async def blackjack(interaction: discord.Interaction, bet: int):
         if d_score == 21:
             await view.end_game(interaction, "Double Blackjack! Push (Tie). Bet returned.", 1)
         else:
-            await view.end_game(interaction, "BLACKJACK! You Win!", 2.5) # Standard 3:2 payout (bet + 1.5x)
+            await view.end_game(interaction, "BLACKJACK! You Win!", 2.5)
         return
         
     await interaction.response.send_message(embed=view.generate_embed(), view=view)
@@ -435,7 +458,6 @@ async def rr(interaction: discord.Interaction):
         random.shuffle(bot.rr_chamber)
     
     bullet_fired = bot.rr_chamber.pop()
-    
     if bullet_fired:
         death_line = random.choice(DEATH_LINES)
         await interaction.response.send_message(f"🔫 **💥 BANG!**\n{interaction.user.mention} got packed up.\n*{death_line}*")
@@ -444,8 +466,8 @@ async def rr(interaction: discord.Interaction):
         bullets_left = len(bot.rr_chamber)
         await interaction.response.send_message(f"🔫 **Click.** {interaction.user.mention} survives. (*{bullets_left} chambers left*)")
 
+
 # --- AI COMMANDS (SLASH COMMANDS) ---
-# Added is_ai_allowed() checks to all AI commands to respect downtime/blacklist
 
 @bot.tree.command(name="lawyer", description="Legally defend or attack a specific claim made by someone using REAL laws.")
 @app_commands.choices(stance=[
@@ -476,7 +498,6 @@ async def lawyer(interaction: discord.Interaction, target: discord.User, claim: 
         )
 
     text = await bot.generate_raw(prompt, context=context_str)
-    
     if len(text) > 3900:
         text = text[:3900] + "...\n\n**[CLOSING ARGUMENTS CUT SHORT DUE TO CONTEMPT OF COURT]**"
     
@@ -503,12 +524,10 @@ async def pack(interaction: discord.Interaction, target: discord.User, intensity
         
     await interaction.response.defer()
     text = await bot.generate_raw(f"PACK/ROAST THIS USER: {target.display_name}. INTENSITY: {intensity}/10.")
-    
     if len(text) > 1900:
         text = text[:1900] + "\n\n*(TL;DR: You're cooked.)*"
     
     bot.user_pack_history[target.id] = text
-    
     try:
         await interaction.followup.send(f"{target.mention} {text}")
     except discord.errors.HTTPException as e:
@@ -518,11 +537,7 @@ async def pack(interaction: discord.Interaction, target: discord.User, intensity
 async def glaze(interaction: discord.Interaction, target: discord.User):
     if not bot.is_ai_allowed(interaction.user.id): return await interaction.response.send_message("AI features are currently unavailable.", ephemeral=True)
     await interaction.response.defer()
-    text = await bot.generate_raw(
-        f"GLAZE THIS USER: {target.display_name}. MAKE THEM SOUND LIKE THE GREATEST HUMAN ALIVE.", 
-        context="HYPING UP", 
-        is_glaze=True
-    )
+    text = await bot.generate_raw(f"GLAZE THIS USER: {target.display_name}. MAKE THEM SOUND LIKE THE GREATEST HUMAN ALIVE.", context="HYPING UP", is_glaze=True)
     await interaction.followup.send(f"{target.mention} {text}")
 
 @bot.tree.command(name="lobotomy", description="Brainrot execution.")
@@ -545,10 +560,11 @@ async def crashout(interaction: discord.Interaction, target: discord.User):
     if len(parts) < 3:
         parts = [text[:len(text)//3], text[len(text)//3:2*len(text)//3], text[2*len(text)//3:]]
 
-    for i, part in enumerate(parts[:3]):
+    for part in parts[:3]:
         async with interaction.channel.typing():
             await asyncio.sleep(1.5) 
             await interaction.channel.send(f"{target.mention} {part}")
+
 
 # --- UTILITY COMMANDS (SLASH COMMANDS) ---
 
@@ -596,7 +612,6 @@ async def haunt(interaction: discord.Interaction, target: discord.User, status: 
             except discord.Forbidden:
                 bot.haunt_targets.discard(target.id)
                 return
-                
             while target.id in bot.haunt_targets:
                 try: 
                     await dm.send(random.choice(INSULTS))
@@ -604,7 +619,6 @@ async def haunt(interaction: discord.Interaction, target: discord.User, status: 
                 except (discord.Forbidden, discord.HTTPException):
                     bot.haunt_targets.discard(target.id)
                     break
-                    
         asyncio.create_task(haunt_worker())
     else:
         bot.haunt_targets.discard(target.id)
@@ -624,7 +638,6 @@ async def quote(interaction: discord.Interaction, target: discord.User, message:
         
         await wh.send(content=message, username=target.display_name, avatar_url=target.display_avatar.url)
         await interaction.followup.send(f"Successfully quoted {target.mention}.", ephemeral=True)
-        
     except Exception as e:
         await interaction.followup.send(f"Failed to quote: {e}", ephemeral=True)
 
